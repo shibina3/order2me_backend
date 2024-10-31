@@ -1,17 +1,33 @@
+const awsServerlessExpress = require('aws-serverless-express');
 const express = require('express');
-const serverless = require('serverless-http');
-const cors = require('cors');
+const app = express();
 const { Pool } = require('pg');
 
-const app = express();
-app.use(express.json());
-app.use(cors());
+// Middleware to handle CORS
+app.use((req, res, next) => {
+    res.setHeader('Access-Control-Allow-Origin', '*'); // Allow requests from any origin
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    if (req.method === 'OPTIONS') {
+        res.sendStatus(204); // Respond to OPTIONS requests with no content
+    } else {
+        next();
+    }
+});
+
+// const pool = new Pool({
+//     user: 'postgres',
+//     host: 'localhost',
+//     database: 'order2me',
+//     password: '12345',
+//     port: 5432,
+// });
 
 const pool = new Pool({
     user: 'shibina',
-    host: 'localhost',
-    database: 'mydb',
-    password: '12345',
+    host: 'database-1.c5c4wam0egxq.us-east-1.rds.amazonaws.com',
+    database: 'order2me',
+    password: 'ramyasil2024',
     port: 5432,
 });
 
@@ -116,6 +132,9 @@ app.post('/categories', async (req, res) => {
 
 app.get('/categories', async (req, res) => {
     try {
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE');
+        res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
         const result = await pool.query('SELECT * FROM categories');
         res.status(200).json(result.rows);
     } catch (error) {
@@ -425,9 +444,12 @@ app.post('/orders', async (req, res) => {
     }
 });
 
+// Create a server for AWS Lambda
+const server = awsServerlessExpress.createServer(app);
 
-// for lambda deployment
-// exports.handler = serverless(app);
+exports.handler = (event, context) => {
+    awsServerlessExpress.proxy(server, event, context);
+};
 
 // for local deployment
-app.listen(3001, () => console.log('Local app listening on port 3001!'));
+// app.listen(3001, () => console.log('Local app listening on port 3001!'));
