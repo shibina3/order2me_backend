@@ -552,15 +552,15 @@ exports.handler = async (event) => {
                 };
             }
         } else if (body.path === "/post/cart") {
-            const { user_id, item_id, quantity, amount } = body;
+            const { user_id, item_id, quantity, amount, product_quantity } = body;
         
             try {
                 const query = `
-                    INSERT INTO cart (user_id, item_id, quantity, amount)
-                    VALUES ($1, $2, $3, $4)
+                    INSERT INTO cart (user_id, item_id, quantity, amount, product_quantity)
+                    VALUES ($1, $2, $3, $4, $5)
                     RETURNING *
                 `;
-                const values = [user_id, item_id, quantity, amount];
+                const values = [user_id, item_id, quantity, amount, product_quantity];
                 const result = await pool.query(query, values);
         
                 return {
@@ -580,10 +580,21 @@ exports.handler = async (event) => {
             try {
                 const app_status = await pool.query('SELECT * FROM contact_details WHERE key = $1', ['app_status']);
                 const query = `
-                    SELECT c.id, c.item_id, i.name, i.image_url, c.quantity, c.amount, i.stock
-                    FROM cart c
-                    JOIN items i ON c.item_id = i.id
-                    WHERE c.user_id = $1
+                    SELECT 
+                        c.id,
+                        c.item_id,
+                        i.name,
+                        i.image_url,
+                        c.quantity,
+                        c.amount,
+                        i.stock,
+                        c.product_quantity AS price_quantity
+                    FROM 
+                        cart c
+                    JOIN 
+                        items i ON c.item_id = i.id
+                    WHERE 
+                        c.user_id = $1
                 `;
                 const result = await pool.query(query, [userId]);
         
@@ -691,7 +702,12 @@ exports.handler = async (event) => {
         
                     const detailedItems = await Promise.all(items.map(async (item) => {
                         try {
-                            const itemDetailsResult = await pool.query('SELECT name, image_url FROM items WHERE id=' + item.item_id);
+                            const itemDetailsResult = await pool.query(`
+                            SELECT items.name, items.image_url, price_details.quantity as product_quantity, price_details.amount 
+                            FROM items 
+                            JOIN price_details ON items.id = price_details.item_id 
+                            WHERE items.id = $1
+                            ` , [item.item_id]);
                             let itemDetails;
                             if (itemDetailsResult.rows.length === 0) {
                                 console.warn(`Item with ID ${item.item_id} was deleted.`);
@@ -703,7 +719,8 @@ exports.handler = async (event) => {
                             return {
                                 ...item,
                                 item_name: itemDetails.name,
-                                image_url: itemDetails.image_url
+                                image_url: itemDetails.image_url,
+                                product_quantity: itemDetails.product_quantity
                             };
                         } catch (err) {
                             console.error(`Error fetching details for item ID ${item.item_id}:`, err);
@@ -756,7 +773,12 @@ exports.handler = async (event) => {
         
                     const detailedItems = await Promise.all(items.map(async (item) => {
                         try {
-                            const itemDetailsResult = await pool.query('SELECT name, image_url FROM items WHERE id=' + item.item_id);
+                            const itemDetailsResult = await pool.query(`
+                            SELECT items.name, items.image_url, price_details.quantity as product_quantity, price_details.amount 
+                            FROM items 
+                            JOIN price_details ON items.id = price_details.item_id 
+                            WHERE items.id = $1
+                            ` , [item.item_id]);
                             let itemDetails;
                             if (itemDetailsResult.rows.length === 0) {
                                 console.warn(`Item with ID ${item.item_id} was deleted.`);
@@ -768,7 +790,8 @@ exports.handler = async (event) => {
                             return {
                                 ...item,
                                 item_name: itemDetails.name,
-                                image_url: itemDetails.image_url
+                                image_url: itemDetails.image_url,
+                                product_quantity: itemDetails.product_quantity
                             };
                         } catch (err) {
                             console.error(`Error fetching details for item ID ${item.item_id}:`, err);
@@ -801,16 +824,16 @@ exports.handler = async (event) => {
             }
         } else if (body.path === "/put/cart") {
             const { itemId } = body;
-            const { quantity, amount, user_id } = body;
+            const { quantity, amount, user_id, product_quantity } = body;
         
             try {
                 const query = `
                     UPDATE cart
-                    SET quantity = $1, amount = $2
-                    WHERE user_id = $3 AND item_id = $4
+                    SET quantity = $1, amount = $2, product_quantity = $3
+                    WHERE user_id = $4 AND item_id = $5
                     RETURNING *
                 `;
-                const values = [quantity, amount, user_id, itemId];
+                const values = [quantity, amount, product_quantity, user_id, itemId];
                 const result = await pool.query(query, values);
                 
                 if (result.rows.length > 0) {
