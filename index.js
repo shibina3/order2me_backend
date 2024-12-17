@@ -411,7 +411,7 @@ exports.handler = async (event) => {
             try {
                 await pool.query('BEGIN');
                 for (let i = 0; i < order.length; i++) {
-                    await pool.query('UPDATE categories SET name = $1, description = $2, image_url = $3, location = $4 WHERE id = $5', [order[i].name, order[i].description, order[i].image_url, order[i].location, order[i].id]);
+                    await pool.query('UPDATE categories SET "order" = $1 WHERE id = $2', [order[i].order, order[i].id]);
                 }
                 await pool.query('COMMIT');
                 return {
@@ -665,8 +665,8 @@ exports.handler = async (event) => {
         
                 for (const item of items) {
                     await pool.query(
-                        'INSERT INTO order_items (order_id, item_id, quantity, price) VALUES ($1, $2, $3, $4)',
-                        [orderId, item.item_id, item.quantity, item.amount]
+                        'INSERT INTO order_items (order_id, item_id, quantity, price, product_quantity) VALUES ($1, $2, $3, $4, $5)',
+                        [orderId, item.item_id, item.quantity, item.amount, item.price_quantity]
                     );
                 }
         
@@ -703,9 +703,8 @@ exports.handler = async (event) => {
                     const detailedItems = await Promise.all(items.map(async (item) => {
                         try {
                             const itemDetailsResult = await pool.query(`
-                            SELECT items.name, items.image_url, price_details.quantity as product_quantity, price_details.amount 
+                            SELECT items.name, items.image_url 
                             FROM items 
-                            JOIN price_details ON items.id = price_details.item_id 
                             WHERE items.id = $1
                             ` , [item.item_id]);
                             let itemDetails;
@@ -719,8 +718,7 @@ exports.handler = async (event) => {
                             return {
                                 ...item,
                                 item_name: itemDetails.name,
-                                image_url: itemDetails.image_url,
-                                product_quantity: itemDetails.product_quantity
+                                image_url: itemDetails.image_url
                             };
                         } catch (err) {
                             console.error(`Error fetching details for item ID ${item.item_id}:`, err);
@@ -774,9 +772,8 @@ exports.handler = async (event) => {
                     const detailedItems = await Promise.all(items.map(async (item) => {
                         try {
                             const itemDetailsResult = await pool.query(`
-                            SELECT items.name, items.image_url, price_details.quantity as product_quantity, price_details.amount 
+                            SELECT items.name, items.image_url
                             FROM items 
-                            JOIN price_details ON items.id = price_details.item_id 
                             WHERE items.id = $1
                             ` , [item.item_id]);
                             let itemDetails;
@@ -790,8 +787,7 @@ exports.handler = async (event) => {
                             return {
                                 ...item,
                                 item_name: itemDetails.name,
-                                image_url: itemDetails.image_url,
-                                product_quantity: itemDetails.product_quantity
+                                image_url: itemDetails.image_url
                             };
                         } catch (err) {
                             console.error(`Error fetching details for item ID ${item.item_id}:`, err);
