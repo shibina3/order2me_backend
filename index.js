@@ -10,7 +10,7 @@ const pool = new Pool({
         rejectUnauthorized: false
     }
 });
-    
+
 const userData = {
     storeData: async (data) => {
         const query = `
@@ -61,8 +61,8 @@ exports.handler = async (event) => {
         'Access-Control-Allow-Headers': 'Content-Type',
     };
     try {
-        const body = event ? event : null;   
-        if(body.path === "/register") {
+        const body = event ? event : null;
+        if (body.path === "/register") {
             const { email, mobile, password, username } = body;
             try {
                 if (await userData.isUserRegistered(email)) {
@@ -72,16 +72,16 @@ exports.handler = async (event) => {
                         body: JSON.stringify({ error: 'User already registered' }),
                     };
                 }
-        
+
                 const data = {
                     username: username,
                     email: email,
                     mobile: mobile,
                     password: password
                 };
-        
+
                 await userData.storeData(data);
-        
+
                 return {
                     statusCode: 200,
                     headers,
@@ -94,18 +94,18 @@ exports.handler = async (event) => {
                     body: JSON.stringify({ error: 'Error registering user' }),
                 };
             }
-        } else if(body.path === "/login") {
+        } else if (body.path === "/login") {
             const { email, password } = body;
             try {
                 const data = await userData.getData(email);
-        
+
                 if (!data) {
                     return {
                         statusCode: 400,
                         headers,
                         body: JSON.stringify({ error: 'User does not exist. Please register first' }),
                     };
-                } else if(data.password !== password) {
+                } else if (data.password !== password) {
                     return {
                         statusCode: 400,
                         headers,
@@ -127,11 +127,11 @@ exports.handler = async (event) => {
                     body: JSON.stringify({ error: 'Error during login' }),
                 };
             }
-        } else if(body.path === "/delete/user") {
+        } else if (body.path === "/delete/user") {
             const { id } = body;
             try {
-                const result = await pool.query('DELETE FROM users WHERE id = $1',[id]);
-        
+                const result = await pool.query('DELETE FROM users WHERE id = $1', [id]);
+
                 return {
                     statusCode: 200,
                     message: 'User Deleted',
@@ -143,10 +143,10 @@ exports.handler = async (event) => {
                     body: JSON.stringify({ error: 'Error while deleting users' }),
                 };
             }
-        } else if(body.path === "/get/users") {
+        } else if (body.path === "/get/users") {
             try {
                 const result = await pool.query('SELECT * FROM users');
-        
+
                 return {
                     statusCode: 200,
                     body: JSON.stringify(result.rows),
@@ -157,10 +157,10 @@ exports.handler = async (event) => {
                     body: JSON.stringify({ error: 'Error while fetching users' }),
                 };
             }
-        } else if(body.path === "/get/delivers") {
+        } else if (body.path === "/get/delivers") {
             try {
                 const result = await pool.query('SELECT * FROM delivery');
-        
+
                 return {
                     statusCode: 200,
                     body: JSON.stringify(result.rows),
@@ -175,10 +175,10 @@ exports.handler = async (event) => {
             const { order_id, otp } = body;
             try {
                 const result = await pool.query('SELECT otp FROM delivery WHERE order_id = $1', [order_id]);
-                
+
                 if (result.rows.length > 0) {
                     const storedOtp = result.rows[0].otp;
-                    
+
                     if (storedOtp === otp) {
                         return {
                             statusCode: 200,
@@ -203,10 +203,10 @@ exports.handler = async (event) => {
                     body: JSON.stringify({ error: 'Error while verifying OTP', success: false }),
                 };
             }
-        } else if(body.path === "/contact/details") {
+        } else if (body.path === "/contact/details") {
             try {
                 const result = await pool.query('SELECT * FROM contact_details');
-        
+
                 return {
                     statusCode: 200,
                     body: JSON.stringify(result.rows),
@@ -217,32 +217,32 @@ exports.handler = async (event) => {
                     body: JSON.stringify({ error: 'Error while fetching details' }),
                 };
             }
-        } else if(body.path === "/update/details") {
-            const details = body.details; 
+        } else if (body.path === "/update/details") {
+            const details = body.details;
             const keys = Object.keys(details);
-            
+
             if (keys.length === 0) {
                 return {
                     statusCode: 400,
                     body: JSON.stringify({ error: 'No details provided to update' }),
                 };
             }
-        
+
             try {
                 for (const key of keys) {
                     const value = details[key];
-        
+
                     await pool.query(
                         'UPDATE contact_details SET value = $1 WHERE key = $2',
                         [value.trim(), key.trim()]
                     );
                 }
-        
+
                 return {
                     statusCode: 200,
                     message: 'Details updated'
                 };
-        
+
             } catch (error) {
                 console.error("Error while updating details:", error);
                 return {
@@ -251,17 +251,17 @@ exports.handler = async (event) => {
                 };
             }
         }
-        else if(body.path === "/change/roles") {
-            const {role, value, id} = body;
+        else if (body.path === "/change/roles") {
+            const { role, value, id } = body;
             try {
                 let queryStr = ''
-                if(role === "admin") {
+                if (role === "admin") {
                     queryStr = 'UPDATE users SET admin = $1 WHERE id = $2 RETURNING *';
                 } else {
                     queryStr = 'UPDATE users SET delivery_partner = $1 WHERE id = $2 RETURNING *';
                 }
-                const result = await pool.query(queryStr,[value, id]);
-        
+                const result = await pool.query(queryStr, [value, id]);
+
                 return {
                     statusCode: 200,
                     message: 'User role updated',
@@ -273,11 +273,11 @@ exports.handler = async (event) => {
                     body: JSON.stringify({ error: 'Error while fetching users' }),
                 };
             }
-        } else if(body.path === "/get/user-detail") {
+        } else if (body.path === "/get/user-detail") {
             const { email } = body;
             try {
                 const data = await userData.getData(email);
-        
+
                 if (!data) {
                     return {
                         statusCode: 400,
@@ -300,11 +300,11 @@ exports.handler = async (event) => {
                     body: JSON.stringify({ error: 'Error during login' }),
                 };
             }
-        } else if(body.path === "/post/categories") {
+        } else if (body.path === "/post/categories") {
             const { name, description, image_url } = body;
             const query = 'INSERT INTO categories (name, description, image_url) VALUES ($1, $2, $3) RETURNING *';
             const values = [name, description, image_url];
-        
+
             try {
                 const result = await pool.query(query, values);
                 return {
@@ -318,7 +318,7 @@ exports.handler = async (event) => {
                     body: JSON.stringify({ error: 'Internal server error' }),
                 };
             }
-        } else if(body.path === "/get/categories") {
+        } else if (body.path === "/get/categories") {
             try {
                 const app_status = await pool.query('SELECT * FROM contact_details WHERE key = $1', ['app_status']);
                 const result = await pool.query('SELECT * FROM categories');
@@ -338,7 +338,7 @@ exports.handler = async (event) => {
             const { name, description, image_url, location } = body;
             const query = 'INSERT INTO categories (name, description, image_url, location) VALUES ($1, $2, $3, $4) RETURNING *';
             const values = [name, description, image_url, location];
-            
+
             try {
                 await pool.query(query, values);
                 const result = await pool.query('SELECT * FROM categories');
@@ -355,16 +355,98 @@ exports.handler = async (event) => {
                 };
             }
         } else if (body.path === "/put/categories") {
-            const { name, description, image_url, id, location } = body;
-            const query = 'UPDATE categories SET name = $1, description = $2, image_url = $3, location = $4 WHERE id = $4 RETURNING *';
-            const values = [name, description, image_url, location, id];
-        
+            const { name, description, image_url, id, location, order, hide } = body;
+            const query = 'UPDATE categories SET name = $1, description = $2, image_url = $3, location = $4, "order" = $6, hide = $7 WHERE id = $5 RETURNING *';
+            const values = [name, description, image_url, location, id, parseInt(order), hide];
+
             try {
                 const result = await pool.query(query, values);
                 if (result.rows.length > 0) {
                     return {
                         statusCode: 200,
                         body: JSON.stringify(result.rows[0]),
+                        message: "Category Edited"
+                    };
+                } else {
+                    return {
+                        statusCode: 404,
+                        body: JSON.stringify({ error: 'Category not found' }),
+                    };
+                }
+            } catch (error) {
+                console.error("Error updating category:", error);
+                return {
+                    statusCode: 500,
+                    body: JSON.stringify({ error: 'Internal server error' }),
+                };
+            }
+        } else if (body.path === "/club/categories") {
+            const { categories, location } = body;
+            try {
+
+                await pool.query('INSERT INTO clubbed_categories (categories, location) VALUES ($1, $2)', [JSON.stringify(categories), location]);
+                const result = await pool.query('SELECT * FROM clubbed_categories');
+
+                return {
+                    statusCode: 201,
+                    message: "Categories Clubbed",
+                    body: JSON.stringify(result.rows)
+                }
+            } catch (error) {
+                console.error("Error clubbing categories:", error);
+                return {
+                    statusCode: 500,
+                    body: JSON.stringify({ error: 'Internal server error' }),
+                };
+            }
+        } else if (body.path === "/clubbed/categories") {
+            try {
+
+                const result = await pool.query('SELECT * FROM clubbed_categories');
+                return {
+                    statusCode: 200,
+                    body: JSON.stringify(result.rows),
+                };
+            } catch (error) {
+                console.error("Error fetching clubbed categories:", error);
+                return {
+                    statusCode: 500,
+                    body: JSON.stringify({ error: 'Internal server error' }),
+                };
+            }
+        } else if (body.path === "/unclub/categories") {
+            const { id } = body;
+            try {
+
+                await pool.query('DELETE FROM clubbed_categories WHERE id = $1', [id]);
+                const result = await pool.query('SELECT * FROM clubbed_categories');
+                return {
+                    statusCode: 200,
+                    message: "Categories Unclubbed",
+                    body: JSON.stringify(result.rows)
+                }
+
+            } catch (error) {
+                console.error("Error unclubbing categories:", error);
+                return {
+                    statusCode: 500,
+                    body: JSON.stringify({ error: 'Internal server error' }),
+                };
+            }
+        } else if (body.path === "/hideOrUnhide/categories") {
+            const { id, hide } = body;
+            const query = 'UPDATE categories SET hide = $1 WHERE id = $2 RETURNING *';
+            const values = [hide, id];
+
+            try {
+                const result = await pool.query(query, values);
+                // change out-of-stock status of items in the category
+                await pool.query('UPDATE items SET stock = $1 WHERE category_id = $2', [hide ? 'out-of-stock' : 'in-stock', id]);
+                if (result.rows.length > 0) {
+                    return {
+                        statusCode: 200,
+                        body: JSON.stringify(result.rows[0]),
+                        message: "Done"
                     };
                 } else {
                     return {
@@ -381,17 +463,22 @@ exports.handler = async (event) => {
             }
         } else if (body.path === "/delete/categories") {
             const { id } = body;
+            const delete_wishlist = 'DELETE FROM wishlist WHERE item_id IN (SELECT id FROM items WHERE category_id = $1)';
+            const delete_items = 'DELETE FROM items WHERE category_id = $1';
+
             const query = 'DELETE FROM categories WHERE id = $1 RETURNING *';
             const values = [id];
-        
+
             try {
+                await pool.query(delete_wishlist, values);
+                await pool.query(delete_items, values);
                 const result = await pool.query(query, values);
                 if (result.rows.length > 0) {
                     const categories = await pool.query('SELECT * FROM categories')
                     return {
                         statusCode: 200,
                         message: "Category Deleted",
-                        body:JSON.stringify(categories.rows)
+                        body: JSON.stringify(categories.rows)
                     };
                 } else {
                     return {
@@ -406,7 +493,7 @@ exports.handler = async (event) => {
                     body: JSON.stringify({ error: 'Internal server error' }),
                 };
             }
-        } else if(body.path === "/update/categories_order") {
+        } else if (body.path === "/update/categories_order") {
             const { order } = body;
             try {
                 await pool.query('BEGIN');
@@ -428,7 +515,7 @@ exports.handler = async (event) => {
             }
         } else if (body.path === "/post/items") {
             const { name, image_url, description, category_id, stock, price_details, popular_item, new_arrival, location } = body;
-        
+
             const client = await pool.connect();
             try {
                 await client.query('BEGIN');
@@ -436,16 +523,16 @@ exports.handler = async (event) => {
                     INSERT INTO items (name, image_url, description, category_id, stock, popular_item, new_arrival, location)
                     VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id
                 `, [name, image_url, description, category_id, stock, popular_item, new_arrival, location]);
-        
+
                 const itemId = insertItemResult.rows[0].id;
-        
+
                 for (const price of price_details) {
                     await client.query(`
                         INSERT INTO price_details (item_id, quantity, amount)
                         VALUES ($1, $2, $3)
                     `, [itemId, price.quantity, price.amount]);
                 }
-        
+
                 await client.query('COMMIT');
                 return {
                     statusCode: 201,
@@ -472,7 +559,7 @@ exports.handler = async (event) => {
                     LEFT JOIN price_details p ON i.id = p.item_id
                     GROUP BY i.id, c.name
                 `);
-        
+
                 return {
                     statusCode: 200,
                     body: JSON.stringify(itemsResult.rows),
@@ -487,28 +574,28 @@ exports.handler = async (event) => {
         } else if (body.path === "/put/items") {
             const { id } = body;
             const { name, image_url, description, stock, price_details, popular_item, new_arrival, location } = body;
-        
+
             const client = await pool.connect();
             try {
                 await client.query('BEGIN');
-        
+
                 await client.query(`
                     UPDATE items 
                     SET name = $1, image_url = $2, description = $3, stock = $4, popular_item = $5, new_arrival = $6, location = $7
                     WHERE id = $8
                 `, [name, image_url, description, stock, popular_item, new_arrival, location, id]);
-        
+
                 await client.query(`
                     DELETE FROM price_details WHERE item_id = $1
                 `, [id]);
-        
+
                 for (const price of price_details) {
                     await client.query(`
                         INSERT INTO price_details (item_id, quantity, amount)
                         VALUES ($1, $2, $3)
                     `, [id, price.quantity, price.amount]);
                 }
-        
+
                 await client.query('COMMIT');
                 return {
                     statusCode: 200,
@@ -526,18 +613,18 @@ exports.handler = async (event) => {
             }
         } else if (body.path === "/delete/items") {
             const { id } = body;
-        
+
             try {
                 await pool.query('BEGIN');
-        
+
                 await pool.query(`
                     DELETE FROM items WHERE id = $1
                 `, [id]);
-        
+
                 await pool.query(`
                     DELETE FROM price_details WHERE item_id = $1
                 `, [id]);
-        
+
                 await pool.query('COMMIT');
                 return {
                     statusCode: 200,
@@ -552,9 +639,46 @@ exports.handler = async (event) => {
                 };
             }
         } else if (body.path === "/post/cart") {
-            const { user_id, item_id, quantity, amount, product_quantity } = body;
-        
+            const { user_id, item_id, quantity, amount, product_quantity, location } = body;
+
             try {
+                const cartItems = await pool.query('SELECT DISTINCT item_id FROM cart WHERE user_id = $1', [user_id]);
+
+                if (cartItems.rowCount > 0) {
+                    const existingItemIds = cartItems.rows.map(row => row.item_id);
+
+                    // Fetch category IDs for items in the cart and the new item
+                    const categoryResult = await pool.query(
+                        'SELECT DISTINCT category_id FROM items WHERE id = ANY($1::int[])',
+                        [existingItemIds] 
+                    );
+                    
+                    let currentCategoryId = await pool.query('SELECT category_id FROM items WHERE id = $1', [item_id]);
+                    currentCategoryId = currentCategoryId.rows[0].category_id;                    
+    
+                    const categoryIds = categoryResult.rows.map(row => row.category_id);
+                    console.log("categoryIds", categoryIds);
+                    
+    
+                    // Fetch clubbed categories for the given location
+                    const clubbedCategoryResult = await pool.query(
+                        'SELECT categories FROM clubbed_categories WHERE location = $1',
+                        [location]
+                    );
+    
+                    const clubbedCategorySets = clubbedCategoryResult.rows.map(row => JSON.parse(row.categories));
+                    console.log("clubbedCategorySets", clubbedCategorySets);
+
+                    const existingClub = clubbedCategorySets.find(set => set.includes(categoryIds[0]));
+
+                    if(!existingClub.includes(currentCategoryId)) {
+                        return {
+                            statusCode: 400,
+                            body: JSON.stringify({ error: 'Items from different categories cannot be clubbed.' }),
+                        };
+                    }
+                }
+
                 const query = `
                     INSERT INTO cart (user_id, item_id, quantity, amount, product_quantity)
                     VALUES ($1, $2, $3, $4, $5)
@@ -562,7 +686,7 @@ exports.handler = async (event) => {
                 `;
                 const values = [user_id, item_id, quantity, amount, product_quantity];
                 const result = await pool.query(query, values);
-        
+
                 return {
                     statusCode: 201,
                     body: JSON.stringify(result.rows[0]),
@@ -574,9 +698,35 @@ exports.handler = async (event) => {
                     body: JSON.stringify({ error: 'Failed to add item to cart' }),
                 };
             }
+        } else if (body.path === "/clear/post/cart") {
+            const { user_id, item_id, quantity, amount, product_quantity, location } = body;
+
+            try {
+                await pool.query('DELETE FROM cart WHERE user_id = $1', [user_id]);
+                const query = `
+                    INSERT INTO cart (user_id, item_id, quantity, amount, product_quantity)
+                    VALUES ($1, $2, $3, $4, $5)
+                    RETURNING *
+                `;
+                const values = [user_id, item_id, quantity, amount, product_quantity];
+                await pool.query(query, values);
+
+                const result = await pool.query('SELECT * FROM cart WHERE user_id = $1', [user_id]);
+
+                return {
+                    statusCode: 201,
+                    body: JSON.stringify(result.rows),
+                };
+            } catch (error) {
+                console.error('Error adding item to cart:', error);
+                return {
+                    statusCode: 500,
+                    body: JSON.stringify({ error: 'Failed to add item to cart' }),
+                };
+            }
         } else if (body.path === "/get/cart") {
             const { userId } = body;
-        
+
             try {
                 const app_status = await pool.query('SELECT * FROM contact_details WHERE key = $1', ['app_status']);
                 const query = `
@@ -597,7 +747,7 @@ exports.handler = async (event) => {
                         c.user_id = $1
                 `;
                 const result = await pool.query(query, [userId]);
-        
+
                 return {
                     statusCode: 200,
                     app_status: app_status.rows[0].value,
@@ -612,11 +762,11 @@ exports.handler = async (event) => {
             }
         } else if (body.path === "/delete/cart") {
             const { id } = body;
-        
+
             try {
                 const query = 'DELETE FROM cart WHERE item_id = $1 RETURNING *';
                 const result = await pool.query(query, [id]);
-        
+
                 if (result.rows.length > 0) {
                     return {
                         statusCode: 200,
@@ -637,7 +787,7 @@ exports.handler = async (event) => {
             }
         } else if (body.path === "/post/orders") {
             const { user_id, address, phone_number, payment_method, items, selectedTimeSlot } = body;
-        
+
             if (!user_id || !address || !phone_number || !payment_method || !items) {
                 return {
                     statusCode: 400,
@@ -646,42 +796,42 @@ exports.handler = async (event) => {
             }
 
             let payment_status;
-            
+
             if (payment_method !== 'cod') {
-                const paymentUrl = 'https://api.phonepe.com/apis/hermes/pg/v1/pay'; 
+                const paymentUrl = 'https://api.phonepe.com/apis/hermes/pg/v1/pay';
                 payment_status = true
             } else {
                 payment_status = 'pending'
             }
-        
+
             try {
                 await pool.query('BEGIN');
-        
+
                 const orderResult = await pool.query(
                     'INSERT INTO orders (user_id, address, phone_number, payment_method, order_status, payment_status, selected_timeslot) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id',
                     [user_id, address, phone_number, payment_method, "placed", payment_status, selectedTimeSlot]
                 );
                 const orderId = orderResult.rows[0].id;
-        
+
                 for (const item of items) {
                     await pool.query(
                         'INSERT INTO order_items (order_id, item_id, quantity, price, product_quantity) VALUES ($1, $2, $3, $4, $5)',
                         [orderId, item.item_id, item.quantity, item.amount, item.price_quantity]
                     );
                 }
-        
+
                 await pool.query(
                     'DELETE FROM cart WHERE user_id = $1',
                     [user_id]
                 );
-        
+
                 await pool.query('COMMIT');
-        
+
                 return {
                     statusCode: 200,
                     body: JSON.stringify({ message: 'Order placed successfully!' }),
                 };
-                
+
             } catch (error) {
                 await pool.query('ROLLBACK');
                 console.error('Error processing order:', error);
@@ -690,16 +840,16 @@ exports.handler = async (event) => {
                     body: JSON.stringify({ error: 'Failed to process order' }),
                 };
             }
-        } else if (body.path === "/get/orders") {        
+        } else if (body.path === "/get/orders") {
             try {
                 const query = `SELECT * FROM orders`;
                 const result = await pool.query(query);
                 let order_items = result.rows;
-        
+
                 order_items = await Promise.all(order_items.map(async (row) => {
                     const itemsResult = await pool.query('SELECT * FROM order_items WHERE order_id=' + row.id);
                     const items = itemsResult.rows;
-        
+
                     const detailedItems = await Promise.all(items.map(async (item) => {
                         try {
                             const itemDetailsResult = await pool.query(`
@@ -714,7 +864,7 @@ exports.handler = async (event) => {
                             } else {
                                 itemDetails = itemDetailsResult.rows[0];
                             }
-        
+
                             return {
                                 ...item,
                                 item_name: itemDetails.name,
@@ -725,19 +875,19 @@ exports.handler = async (event) => {
                             return null; // Handle individual item fetch error gracefully
                         }
                     }));
-        
+
                     const filteredItems = detailedItems.filter(item => item !== null); // Remove deleted/null items
-        
+
                     const otpResult = await pool.query('SELECT otp FROM delivery WHERE order_id=' + row.id);
                     const otp = otpResult.rows.length > 0 ? otpResult.rows[0].otp : null;
-        
+
                     return {
                         ...row,
                         order_items: filteredItems,
                         otp
                     };
                 }));
-        
+
                 return {
                     statusCode: 200,
                     body: JSON.stringify(order_items),
@@ -749,26 +899,26 @@ exports.handler = async (event) => {
                     body: JSON.stringify({ error: 'Failed to fetch order items' }),
                 };
             }
-        } else if (body.path === "/change/order_status") {  
-            const { order_id, status, delivery_partner_id, otp } = body;      
+        } else if (body.path === "/change/order_status") {
+            const { order_id, status, delivery_partner_id, otp } = body;
             try {
                 const query = `UPDATE orders SET order_status = $1 WHERE id = $2`;
-                await pool.query(query,[status, order_id]);
+                await pool.query(query, [status, order_id]);
 
-                if(delivery_partner_id) {
+                if (delivery_partner_id) {
                     const del_query = `INSERT INTO delivery (order_id, delivery_partner_id, otp) VALUES ($1, $2, $3)`;
-                    await pool.query(del_query,[order_id, delivery_partner_id, otp]);
+                    await pool.query(del_query, [order_id, delivery_partner_id, otp]);
                 }
 
                 const selectQuery = `SELECT * FROM orders`;
                 const result = await pool.query(selectQuery);
 
                 let order_items = result.rows;
-        
+
                 order_items = await Promise.all(order_items.map(async (row) => {
                     const itemsResult = await pool.query('SELECT * FROM order_items WHERE order_id=' + row.id);
                     const items = itemsResult.rows;
-        
+
                     const detailedItems = await Promise.all(items.map(async (item) => {
                         try {
                             const itemDetailsResult = await pool.query(`
@@ -783,7 +933,7 @@ exports.handler = async (event) => {
                             } else {
                                 itemDetails = itemDetailsResult.rows[0];
                             }
-        
+
                             return {
                                 ...item,
                                 item_name: itemDetails.name,
@@ -794,19 +944,19 @@ exports.handler = async (event) => {
                             return null; // Handle individual item fetch error gracefully
                         }
                     }));
-        
+
                     const filteredItems = detailedItems.filter(item => item !== null); // Remove deleted/null items
-        
+
                     const otpResult = await pool.query('SELECT otp FROM delivery WHERE order_id=' + row.id);
                     const otp = otpResult.rows.length > 0 ? otpResult.rows[0].otp : null;
-        
+
                     return {
                         ...row,
                         order_items: filteredItems,
                         otp
                     };
                 }));
-        
+
                 return {
                     statusCode: 200,
                     body: JSON.stringify(order_items),
@@ -821,7 +971,7 @@ exports.handler = async (event) => {
         } else if (body.path === "/put/cart") {
             const { itemId } = body;
             const { quantity, amount, user_id, product_quantity } = body;
-        
+
             try {
                 const query = `
                     UPDATE cart
@@ -831,7 +981,7 @@ exports.handler = async (event) => {
                 `;
                 const values = [quantity, amount, product_quantity, user_id, itemId];
                 const result = await pool.query(query, values);
-                
+
                 if (result.rows.length > 0) {
                     return {
                         statusCode: 200,
@@ -852,7 +1002,7 @@ exports.handler = async (event) => {
             }
         } else if (body.path === "/get/items/category/categoryId") {
             const { categoryId } = body;
-        
+
             try {
                 const itemsResult = await pool.query(`
                     SELECT i.id, i.name, i.image_url, i.description, i.stock, i.popular_item, i.new_arrival,
@@ -862,7 +1012,7 @@ exports.handler = async (event) => {
                     WHERE i.category_id = $1
                     GROUP BY i.id
                 `, [categoryId]);
-                
+
                 return {
                     statusCode: 200,
                     body: JSON.stringify(itemsResult.rows),
@@ -880,11 +1030,11 @@ exports.handler = async (event) => {
                 const contact_admin = await pool.query('SELECT * FROM contact_details WHERE key = $1', ['phone']);
                 const result = await pool.query('SELECT * FROM orders WHERE user_id=' + userId);
                 let order_items = result.rows;
-        
+
                 order_items = await Promise.all(order_items.map(async (row) => {
                     const itemsResult = await pool.query('SELECT * FROM order_items WHERE order_id=' + row.id);
                     const items = itemsResult.rows;
-        
+
                     const detailedItems = await Promise.all(items.map(async (item) => {
                         try {
                             const itemDetailsResult = await pool.query('SELECT name, image_url FROM items WHERE id=' + item.item_id);
@@ -895,7 +1045,7 @@ exports.handler = async (event) => {
                             } else {
                                 itemDetails = itemDetailsResult.rows[0];
                             }
-        
+
                             return {
                                 ...item,
                                 item_name: itemDetails.name,
@@ -906,12 +1056,12 @@ exports.handler = async (event) => {
                             return null; // Handle individual item fetch error gracefully
                         }
                     }));
-        
+
                     const filteredItems = detailedItems.filter(item => item !== null); // Remove deleted/null items
-        
+
                     const otpResult = await pool.query('SELECT otp FROM delivery WHERE order_id=' + row.id);
                     const otp = otpResult.rows.length > 0 ? otpResult.rows[0].otp : null;
-        
+
                     return {
                         ...row,
                         order_items: filteredItems,
@@ -919,7 +1069,7 @@ exports.handler = async (event) => {
                         otp
                     };
                 }));
-        
+
                 return {
                     statusCode: 200,
                     body: JSON.stringify(order_items),
@@ -931,7 +1081,7 @@ exports.handler = async (event) => {
                     body: JSON.stringify({ error: 'Internal server error' }),
                 };
             }
-        } else if(body.path === "/get/delivery_fee") {
+        } else if (body.path === "/get/delivery_fee") {
             const { city } = body;
             try {
                 const result = await pool.query('SELECT * FROM delivery_fee WHERE location = $1', [city]);
@@ -946,7 +1096,7 @@ exports.handler = async (event) => {
                     body: JSON.stringify({ error: 'Internal server error' }),
                 };
             }
-        } else if(body.path === "/add/delivery_fee") {
+        } else if (body.path === "/add/delivery_fee") {
             const { city, delivery_fee, location } = body;
             try {
                 await pool.query('INSERT INTO delivery_fee (area_name, delivery_fee, location) values($1, $2, $3)', [city, delivery_fee, location]);
@@ -964,21 +1114,21 @@ exports.handler = async (event) => {
             }
         } else if (body.path === "/update/delivery_fee") {
             const { area_name, delivery_fee } = body.areaDetails;
-            const {area_id} = body;
-            
+            const { area_id } = body;
+
             if (!area_name || !delivery_fee) {
                 return {
                     statusCode: 400,
                     body: JSON.stringify({ error: 'Area name and delivery fee are required' }),
                 };
             }
-        
+
             try {
                 const query = 'UPDATE delivery_fee SET area_name = $1, delivery_fee = $2 WHERE area_id = $3';
                 await pool.query(query, [area_name.trim(), delivery_fee.trim(), area_id]);
 
                 const result = await pool.query('SELECT * FROM delivery_fee');
-                
+
                 return {
                     statusCode: 200,
                     message: 'Area details updated',
@@ -991,7 +1141,7 @@ exports.handler = async (event) => {
                     error: 'Error updating area details'
                 };
             }
-        } else if(body.path === "/get/delivery_charges") {
+        } else if (body.path === "/get/delivery_charges") {
             try {
                 const result = await pool.query('SELECT * FROM delivery_fee');
                 return {
@@ -1005,10 +1155,10 @@ exports.handler = async (event) => {
                     body: JSON.stringify({ error: 'Internal server error' }),
                 };
             }
-        } else if(body.path === "/delete/delivery_charges") {
+        } else if (body.path === "/delete/delivery_charges") {
             const { area_id } = body;
             try {
-                await pool.query('DELETE FROM delivery_fee WHERE area_id = $1',[area_id]);
+                await pool.query('DELETE FROM delivery_fee WHERE area_id = $1', [area_id]);
                 const result = await pool.query('SELECT * FROM delivery_fee');
                 return {
                     statusCode: 200,
@@ -1022,7 +1172,7 @@ exports.handler = async (event) => {
                     body: JSON.stringify({ error: 'Internal server error' }),
                 };
             }
-        } else if(body.path === "/get/wishlist") {
+        } else if (body.path === "/get/wishlist") {
             const { user_id } = body;
             try {
                 const result = await pool.query(`SELECT i.id, 
@@ -1053,7 +1203,7 @@ exports.handler = async (event) => {
                     body: JSON.stringify({ error: 'Internal server error' }),
                 };
             }
-        } else if(body.path === "/add/wishlist") {
+        } else if (body.path === "/add/wishlist") {
             const { user_id, item_id } = body;
             try {
                 const result = await pool.query('INSERT INTO wishlist (user_id, item_id) VALUES ($1, $2) RETURNING *;', [user_id, item_id]);
@@ -1068,7 +1218,7 @@ exports.handler = async (event) => {
                     body: JSON.stringify({ error: 'Internal server error' }),
                 };
             }
-        } else if(body.path === "/delete/wishlist") {
+        } else if (body.path === "/delete/wishlist") {
             const { user_id, item_id } = body;
             try {
                 const result = await pool.query('DELETE FROM wishlist WHERE user_id = $1 AND item_id = $2 RETURNING *;', [user_id, item_id]);
@@ -1083,10 +1233,15 @@ exports.handler = async (event) => {
                     body: JSON.stringify({ error: 'Internal server error' }),
                 };
             }
-        } else if(body.path === "/delete/location") {
+        } else if (body.path === "/delete/location") {
             const { id } = body;
             try {
                 const result = await pool.query('DELETE FROM locations WHERE id = $1 RETURNING *;', [id]);
+                const location = result.rows[0].name;
+                await pool.query('DELETE FROM delivery_fee WHERE location = $1', [location]);
+                await pool.query('DELETE FROM clubbed_categories WHERE location = $1', [location]);
+                await pool.query('DELETE FROM items WHERE location = $1', [location]);
+                await pool.query('DELETE FROM categories WHERE location = $1', [location]);
                 return {
                     statusCode: 200,
                     message: "Location Deleted",
@@ -1099,7 +1254,7 @@ exports.handler = async (event) => {
                     body: JSON.stringify({ error: 'Internal server error' }),
                 };
             }
-        } else if(body.path === "/add/location") {
+        } else if (body.path === "/add/location") {
             const { name } = body;
             try {
                 const result = await pool.query(`
@@ -1117,7 +1272,7 @@ exports.handler = async (event) => {
                     body: JSON.stringify({ error: 'Internal server error' }),
                 };
             }
-        }  else if(body.path === "/get/location") {
+        } else if (body.path === "/get/location") {
             try {
                 const result = await pool.query(`SELECT * FROM locations`);
                 return {
@@ -1131,7 +1286,7 @@ exports.handler = async (event) => {
                     body: JSON.stringify({ error: 'Internal server error' }),
                 };
             }
-        } else if(body.path === "/put/app_status") {
+        } else if (body.path === "/put/app_status") {
             const { app_status } = body;
             try {
                 await pool.query('UPDATE contact_details SET value = $1 WHERE key = $2', [app_status, 'app_status']);
@@ -1146,7 +1301,7 @@ exports.handler = async (event) => {
                     body: JSON.stringify({ error: 'Internal server error' }),
                 };
             }
-        } else if(body.path === "/get/time_slots") {
+        } else if (body.path === "/get/time_slots") {
             try {
                 const result = await pool.query('SELECT * FROM time_slots');
                 return {
@@ -1160,7 +1315,7 @@ exports.handler = async (event) => {
                     body: JSON.stringify({ error: 'Internal server error' }),
                 };
             }
-        } else if(body.path === "/add/time_slot") {
+        } else if (body.path === "/add/time_slot") {
             const { time_slot } = body;
             try {
                 await pool.query('INSERT INTO time_slots (from_time, to_time) VALUES ($1, $2) RETURNING *;', [time_slot.from, time_slot.to]);
@@ -1177,7 +1332,7 @@ exports.handler = async (event) => {
                     body: JSON.stringify({ error: 'Internal server error' }),
                 };
             }
-        } else if(body.path === "/delete/time_slot") {
+        } else if (body.path === "/delete/time_slot") {
             const { id } = body;
             try {
                 await pool.query('DELETE FROM time_slots WHERE id = $1 RETURNING *;', [id]);
@@ -1194,8 +1349,8 @@ exports.handler = async (event) => {
                     body: JSON.stringify({ error: 'Internal server error' }),
                 };
             }
-        }                                      
-        
+        }
+
     } catch (error) {
         console.error('Database query failed', error);
         return {
