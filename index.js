@@ -786,7 +786,7 @@ exports.handler = async (event) => {
                 };
             }
         } else if (body.path === "/post/orders") {
-            const { user_id, address, phone_number, payment_method, items, selectedTimeSlot } = body;
+            const { user_id, address, phone_number, payment_method, items, selectedTimeSlot, instructions } = body;
 
             if (!user_id || !address || !phone_number || !payment_method || !items) {
                 return {
@@ -808,8 +808,8 @@ exports.handler = async (event) => {
                 await pool.query('BEGIN');
 
                 const orderResult = await pool.query(
-                    'INSERT INTO orders (user_id, address, phone_number, payment_method, order_status, payment_status, selected_timeslot) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id',
-                    [user_id, address, phone_number, payment_method, "placed", payment_status, selectedTimeSlot]
+                    'INSERT INTO orders (user_id, address, phone_number, payment_method, order_status, payment_status, selected_timeslot, instructions) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id',
+                    [user_id, address, phone_number, payment_method, "placed", payment_status, selectedTimeSlot, instructions]
                 );
                 const orderId = orderResult.rows[0].id;
 
