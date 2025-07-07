@@ -52,7 +52,9 @@ const userData = {
     }
 }
 
-exports.handler = async (event) => {
+exports.handler = async (event, context) => {
+    context.callbackWaitsForEmptyEventLoop = false;
+    
     let client = await pool.connect();
     const headers = {
         'Content-Type': 'application/json',
@@ -320,11 +322,12 @@ exports.handler = async (event) => {
             }
         } else if (body.path === "/get/categories") {
             try {
-                const app_status = await pool.query('SELECT * FROM contact_details WHERE key = $1', ['app_status']);
+                const { location } = body
+                const app_status = await pool.query('SELECT * FROM locations WHERE name = $1', [location]);
                 const result = await pool.query('SELECT * FROM categories');
                 return {
                     statusCode: 200,
-                    app_status: app_status.rows[0].value,
+                    app_status: app_status.rows[0].app_status,
                     body: JSON.stringify(result.rows),
                 };
             } catch (error) {
@@ -670,8 +673,9 @@ exports.handler = async (event) => {
                     console.log("clubbedCategorySets", clubbedCategorySets);
 
                     const existingClub = clubbedCategorySets.find(set => set.includes(categoryIds[0]));
+                    const currentCategoryClub = clubbedCategorySets.find(set => set.includes(currentCategoryId));
 
-                    if(!existingClub.includes(currentCategoryId)) {
+                    if((existingClub && !existingClub.includes(currentCategoryId)) || (!existingClub && currentCategoryClub)) {
                         return {
                             statusCode: 400,
                             body: JSON.stringify({ error: 'Items from different categories cannot be clubbed.' }),
@@ -725,10 +729,10 @@ exports.handler = async (event) => {
                 };
             }
         } else if (body.path === "/get/cart") {
-            const { userId } = body;
+            const { userId, location } = body;
 
             try {
-                const app_status = await pool.query('SELECT * FROM contact_details WHERE key = $1', ['app_status']);
+                const app_status = await pool.query('SELECT * FROM locations WHERE name = $1', [location]);
                 const query = `
                     SELECT 
                         c.id,
@@ -748,10 +752,13 @@ exports.handler = async (event) => {
                 `;
                 const result = await pool.query(query, [userId]);
 
+                const wallet = await pool.query('SELECT wallet FROM users WHERE id = $1', [userId]);
+
                 return {
                     statusCode: 200,
-                    app_status: app_status.rows[0].value,
+                    app_status: app_status.rows[0].app_status,
                     body: JSON.stringify(result.rows),
+                    wallet: wallet.rows[0].wallet
                 };
             } catch (error) {
                 console.error('Error fetching cart items:', error);
@@ -785,8 +792,25 @@ exports.handler = async (event) => {
                     body: JSON.stringify({ error: 'Failed to remove item from cart' }),
                 };
             }
+        } else if (body.path === "/clear/cart") {
+            const { userId } = body;
+
+            try {
+                await pool.query('DELETE FROM cart WHERE user_id = $1', [userId]);
+
+                return {
+                    statusCode: 200,
+                    body: JSON.stringify({ message: 'Cart cleared' }),
+                };
+            } catch (error) {
+                console.error('Error clearing cart:', error);
+                return {
+                    statusCode: 500,
+                    body: JSON.stringify({ error: 'Failed to clear cart' }),
+                };
+            }
         } else if (body.path === "/post/orders") {
-            const { user_id, address, phone_number, payment_method, items, selectedTimeSlot, instructions } = body;
+            const { user_id, address, phone_number, payment_method, items, selectedTimeSlot, instructions, useWallet } = body;
 
             if (!user_id || !address || !phone_number || !payment_method || !items) {
                 return {
@@ -824,6 +848,10 @@ exports.handler = async (event) => {
                     'DELETE FROM cart WHERE user_id = $1',
                     [user_id]
                 );
+
+                if(useWallet) {
+                    await pool.query('UPDATE users SET wallet = $1 WHERE id = $2', [0, user_id]);
+                }
 
                 await pool.query('COMMIT');
 
@@ -878,11 +906,15 @@ exports.handler = async (event) => {
 
                     const filteredItems = detailedItems.filter(item => item !== null); // Remove deleted/null items
 
+                    const usernameResult = await pool.query('SELECT username FROM users WHERE id=' + row.user_id);
+                    const username = usernameResult.rows.length > 0 ? usernameResult.rows[0].username : null;
+
                     const otpResult = await pool.query('SELECT otp FROM delivery WHERE order_id=' + row.id);
                     const otp = otpResult.rows.length > 0 ? otpResult.rows[0].otp : null;
 
                     return {
                         ...row,
+                        username,
                         order_items: filteredItems,
                         otp
                     };
@@ -1287,9 +1319,9 @@ exports.handler = async (event) => {
                 };
             }
         } else if (body.path === "/put/app_status") {
-            const { app_status } = body;
+            const { app_status, location  } = body;
             try {
-                await pool.query('UPDATE contact_details SET value = $1 WHERE key = $2', [app_status, 'app_status']);
+                await pool.query('UPDATE locations SET app_status = $1 WHERE name = $2', [app_status, location]);
                 return {
                     statusCode: 200,
                     message: "App status updated"
@@ -1347,6 +1379,121 @@ exports.handler = async (event) => {
                 return {
                     statusCode: 500,
                     body: JSON.stringify({ error: 'Internal server error' }),
+                };
+            }
+        } else if(body.path === 'add/wallet') {
+            const { users, amount } = body;
+            try {
+                await pool.query('BEGIN');
+                for (const user of users) {
+                    await pool.query('UPDATE users SET wallet = wallet + $1 WHERE email = $2', [amount, user]);
+                }
+                await pool.query('COMMIT');
+                return {
+                    statusCode: 200,
+                    message: 'Wallets added successfully'
+                };
+            } catch (error) {
+                await pool.query('ROLLBACK');
+                console.error('Error adding wallets:', error);
+                return {
+                    statusCode: 500,
+                    body: JSON.stringify({ error: 'Failed to add wallets' }),
+                };
+            }
+        } else if(body.path === 'remove/wallet') {
+            const { users } = body;
+            try {
+                await pool.query('BEGIN');
+                for (const user of users) {
+                    await pool.query('UPDATE users SET wallet = $1 WHERE email = $2', [0, user]);
+                }
+                await pool.query('COMMIT');
+                return {
+                    statusCode: 200,
+                    message: 'Wallets removed successfully'
+                };
+            } catch (error) {
+                await pool.query('ROLLBACK');
+                console.error('Error removing wallets:', error);
+                return {
+                    statusCode: 500,
+                    body: JSON.stringify({ error: 'Failed to remove wallets' }),
+                };
+            }
+        } else if(body.path === 'update/wallet') {
+            const { email, amount } = body;
+            try {
+                await pool.query('UPDATE users SET wallet = $1 WHERE id = $2', [amount, email]);
+                return {
+                    statusCode: 200,
+                    message: 'Wallet updated successfully'
+                };
+            } catch (error) {
+                console.error('Error updating wallet:', error);
+                return {
+                    statusCode: 500,
+                    body: JSON.stringify({ error: 'Failed to update wallet' }),
+                };
+            }
+        } else if(body.path === '/get/promo-codes') {
+            try {
+                const result = await pool.query('SELECT * FROM promo_codes');
+                return {
+                    statusCode: 200,
+                    body: JSON.stringify(result.rows),
+                };
+            } catch (error) {
+                console.error('Error fetching promo codes:', error);
+                return {
+                    statusCode: 500,
+                    body: JSON.stringify({ error: 'Failed to fetch promo codes' }),
+                };
+            }
+        } else if(body.path === '/add/promo-code') {
+            const { code, discount, discount_type } = body;
+            try {
+                let result = await pool.query('INSERT INTO promo_codes (code, discount, discount_type) VALUES ($1, $2, $3) RETURNING *', [code, discount, discount_type]);
+                return {
+                    statusCode: 200,
+                    message: 'Promo code added successfully',
+                    result: result
+                };
+            } catch (error) {
+                console.error('Error adding promo code:', error);
+                return {
+                    statusCode: 500,
+                    body: JSON.stringify({ error: 'Failed to add promo code' }),
+                };
+            }
+        } else if(body.path === '/delete/promo-code') {
+            const { codeIds } = body;
+            try {
+                await pool.query('DELETE FROM promo_codes WHERE id = ANY($1::int[])', [codeIds]);
+                return {
+                    statusCode: 200,
+                    message: 'Promo code deleted successfully'
+                };
+            } catch (error) {
+                console.error('Error deleting promo code:', error);
+                return {
+                    statusCode: 500,
+                    body: JSON.stringify({ error: 'Failed to delete promo code' }),
+                };
+            }
+        } else if(body.path === 'get/promo-code') {
+            const { code } = body;
+            try {
+                const result = await pool.query('SELECT * FROM promo_codes WHERE code = $1', [code]);
+                return {
+                    statusCode: 200,
+                    body: JSON.stringify(result.rows),
+                };
+            } catch (error) {
+                console.error('Error fetching promo code:', error);
+                return {
+                    statusCode: 500,
+                    body: JSON.stringify({ error: 'Failed to fetch promo code' }),
                 };
             }
         }
