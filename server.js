@@ -7,6 +7,7 @@ const { Pool } = require('pg');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+let whatsappClient = null;
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -61,8 +62,43 @@ const getImageUrl = (req, filePath) => {
     // If it's already a full URL, return it
     if (filePath.startsWith('http')) return filePath;
     // Otherwise, construct the URL
-    const baseUrl = process.env.API_BASE_URL || `http://${req.get('host')}`;
+    // Use HTTPS domain for production, or construct from request
+    const baseUrl = process.env.API_BASE_URL || 
+        (process.env.NODE_ENV === 'production' 
+            ? 'https://order2me.in' 
+            : `http://${req.get('host')}`);
     return `${baseUrl}/uploads/${filePath}`;
+};
+
+// ========== WHATSAPP NOTIFICATIONS (Twilio) ==========
+const initWhatsAppClient = () => {
+    const { TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_WHATSAPP_FROM, WHATSAPP_TO } = process.env;
+    if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN || !TWILIO_WHATSAPP_FROM || !WHATSAPP_TO) {
+        console.warn('WhatsApp not configured: set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_WHATSAPP_FROM, WHATSAPP_TO');
+        return null;
+    }
+    try {
+        return require('twilio')(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
+    } catch (err) {
+        console.error('Failed to init Twilio client for WhatsApp:', err.message);
+        return null;
+    }
+};
+
+const sendWhatsAppNotification = async (message) => {
+    if (!whatsappClient) {
+        whatsappClient = initWhatsAppClient();
+        if (!whatsappClient) return;
+    }
+    try {
+        await whatsappClient.messages.create({
+            from: `whatsapp:${process.env.TWILIO_WHATSAPP_FROM}`,
+            to: `whatsapp:${process.env.WHATSAPP_TO}`,
+            body: message
+        });
+    } catch (err) {
+        console.error('Failed to send WhatsApp notification:', err.message);
+    }
 };
 
 // User data helper functions
@@ -587,6 +623,19 @@ app.post('/post/orders', async (req, res) => {
             await pool.query('UPDATE users SET wallet = $1 WHERE id = $2', [0, user_id]);
         }
         await pool.query('COMMIT');
+        // Send WhatsApp notification (non-blocking)
+        setImmediate(() => {
+            sendWhatsAppNotification(
+                `New Order #${orderId} placed\n` +
+                `User ID: ${user_id}\n` +
+                `Phone: ${phone_number}\n` +
+                `Address: ${address}\n` +
+                `Payment: ${payment_method}\n` +
+                `Items: ${items.length}\n` +
+                (selectedTimeSlot ? `Time Slot: ${selectedTimeSlot}\n` : '') +
+                (instructions ? `Instructions: ${instructions}` : '')
+            );
+        });
         res.status(200).json({ message: 'Order placed successfully!' });
     } catch (error) {
         await pool.query('ROLLBACK');
@@ -694,6 +743,15 @@ app.post('/change/order_status', async (req, res) => {
                 otp
             };
         }));
+        // Notify on cancellations/declines
+        if (['declined', 'cancelled', 'canceled'].includes(status?.toLowerCase())) {
+            setImmediate(() => {
+                sendWhatsAppNotification(
+                    `Order #${order_id} ${status.toUpperCase()}\n` +
+                    `Delivery Partner: ${delivery_partner_id || 'N/A'}`
+                );
+            });
+        }
         res.status(200).json({ body: order_items });
     } catch (error) {
         console.error('Error fetching order items:', error);
