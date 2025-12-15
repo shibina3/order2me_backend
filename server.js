@@ -71,6 +71,13 @@ const getImageUrl = (req, filePath) => {
 };
 
 // ========== WHATSAPP NOTIFICATIONS (Twilio) ==========
+const normalizeWhatsAppNumber = (num) => {
+    if (!num) return null;
+    const trimmed = num.trim();
+    if (trimmed.startsWith('whatsapp:')) return trimmed;
+    return `whatsapp:${trimmed}`;
+};
+
 const initWhatsAppClient = () => {
     const { TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_WHATSAPP_FROM, WHATSAPP_TO } = process.env;
     if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN || !TWILIO_WHATSAPP_FROM || !WHATSAPP_TO) {
@@ -86,14 +93,20 @@ const initWhatsAppClient = () => {
 };
 
 const sendWhatsAppNotification = async (message) => {
+    const from = normalizeWhatsAppNumber(process.env.TWILIO_WHATSAPP_FROM);
+    const to = normalizeWhatsAppNumber(process.env.WHATSAPP_TO);
+    if (!from || !to) {
+        console.warn('WhatsApp not configured correctly: from/to missing');
+        return;
+    }
     if (!whatsappClient) {
         whatsappClient = initWhatsAppClient();
         if (!whatsappClient) return;
     }
     try {
         await whatsappClient.messages.create({
-            from: `whatsapp:${process.env.TWILIO_WHATSAPP_FROM}`,
-            to: `whatsapp:${process.env.WHATSAPP_TO}`,
+            from,
+            to,
             body: message
         });
     } catch (err) {
@@ -623,18 +636,38 @@ app.post('/post/orders', async (req, res) => {
             await pool.query('UPDATE users SET wallet = $1 WHERE id = $2', [0, user_id]);
         }
         await pool.query('COMMIT');
-        // Send WhatsApp notification (non-blocking)
-        setImmediate(() => {
-            sendWhatsAppNotification(
-                `New Order #${orderId} placed\n` +
-                `User ID: ${user_id}\n` +
-                `Phone: ${phone_number}\n` +
-                `Address: ${address}\n` +
-                `Payment: ${payment_method}\n` +
-                `Items: ${items.length}\n` +
-                (selectedTimeSlot ? `Time Slot: ${selectedTimeSlot}\n` : '') +
-                (instructions ? `Instructions: ${instructions}` : '')
+        // Prepare user and item details for WhatsApp notification
+        const userResult = await pool.query('SELECT username FROM users WHERE id = $1', [user_id]);
+        const username = userResult.rows[0]?.username || `User ID ${user_id}`;
+
+        const itemIds = items.map((item) => item.item_id);
+        let itemsSummary = '';
+        if (itemIds.length > 0) {
+            const itemsResult = await pool.query(
+                'SELECT id, name FROM items WHERE id = ANY($1::int[])',
+                [itemIds]
             );
+            const nameById = new Map(itemsResult.rows.map(row => [row.id, row.name]));
+            const parts = items.map((item) => {
+                const name = nameById.get(item.item_id) || `Item ${item.item_id}`;
+                return `${name} - ${item.quantity}`;
+            });
+            itemsSummary = parts.join(', ');
+        }
+
+        // Send WhatsApp notification (non-blocking)
+        const message =
+            `New Order #${orderId} placed\n` +
+            `Customer: ${username}\n` +
+            `Phone: ${phone_number}\n` +
+            `Address: ${address}\n` +
+            `Payment: ${payment_method}\n` +
+            (itemsSummary ? `Items: ${itemsSummary}\n` : '') +
+            (selectedTimeSlot ? `Time Slot: ${selectedTimeSlot}\n` : '') +
+            (instructions ? `Instructions: ${instructions}` : '');
+
+        setImmediate(() => {
+            sendWhatsAppNotification(message);
         });
         res.status(200).json({ message: 'Order placed successfully!' });
     } catch (error) {
